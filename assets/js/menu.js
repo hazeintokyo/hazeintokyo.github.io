@@ -38,10 +38,10 @@
         if (venueUrl) { const venueLink = document.createElement('a'); venueLink.href = venueUrl; venueLink.target = '_blank'; venueLink.rel = 'noreferrer'; venueLink.textContent = event.venue; venue.append(venueLink); }
         else venue.textContent = event.venue;
       }
-      const area = document.createElement('p'); area.className = 'event-area'; area.textContent = event.location || '';
+      const area = document.createElement('span'); area.className = 'event-area'; area.textContent = event.location ? ` · ${event.location}` : '';
       const links = document.createElement('div'); links.className = 'event-links';
       (Array.isArray(event.links) ? event.links : []).forEach(link => { const url = safeUrl(link?.url); if (!url || typeof link.label !== 'string') return; const anchor = document.createElement('a'); anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noreferrer'; anchor.setAttribute('aria-label', link.label); anchor.title = link.label; const shortLabel = link.label === 'RA.co' ? 'RA' : link.label.toLowerCase().includes('instagram') ? 'IG' : link.label.slice(0, 2).toUpperCase(); anchor.textContent = `[${shortLabel}]`; links.append(anchor); });
-      if (title) details.append(title); if (event.venue) details.append(venue); if (event.location) details.append(area); row.append(date, time, details); if (links.childElementCount) row.append(links); scheduleList.append(row);
+      if (title) details.append(title); if (event.venue) { venue.append(area); details.append(venue); } if (links.childElementCount) details.append(links); row.append(date, time, details); scheduleList.append(row);
     });
   };
   fetch('data/schedule.json').then(response => { if (!response.ok) throw Error('Schedule unavailable'); return response.json(); }).then(data => renderSchedules(Array.isArray(data) ? data : [])).catch(() => { scheduleList.replaceChildren(); const error = document.createElement('p'); error.className = 'schedule-status'; error.textContent = 'Schedules unavailable.'; scheduleList.append(error); });
