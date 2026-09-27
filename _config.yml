@@ -1,0 +1,10 @@
+title: HAZE
+description: HAZE portfolio
+url: ""
+baseurl: ""
+permalink: pretty
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md

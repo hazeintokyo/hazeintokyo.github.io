@@ -1,0 +1,112 @@
+:root {
+  color-scheme: dark;
+  --haze-black: #000;
+  --haze-white: #fff;
+  --haze-side-padding: clamp(1.25rem, 4vw, 4rem);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background: var(--haze-black);
+}
+
+body {
+  overflow: hidden;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.haze {
+  position: relative;
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  padding: env(safe-area-inset-top) var(--haze-side-padding) env(safe-area-inset-bottom);
+  background: var(--haze-black);
+}
+
+.haze__animation {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  width: min(100vw, 100svh);
+  height: min(100vw, 100svh);
+  max-width: 100%;
+  max-height: 100%;
+  transform: translate(-50%, -50%);
+  object-fit: contain;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 300ms ease;
+}
+
+.haze--ready .haze__animation {
+  opacity: 1;
+}
+
+.haze__title {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--haze-white);
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: clamp(4rem, 19vw, 15rem);
+  font-weight: 700;
+  line-height: .82;
+  letter-spacing: -.075em;
+  text-align: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+.haze__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.haze__gesture {
+  display: none;
+}
+
+.haze--active { touch-action: none; }
+
+@media (max-width: 767px) and (pointer: coarse) {
+  .haze--active { touch-action: auto; }
+  .haze__gesture {
+    display: block;
+    position: absolute;
+    inset: 0 12.5%;
+    z-index: 2;
+    touch-action: pan-y pinch-zoom;
+  }
+  .haze { padding-inline: 0; }
+  .haze__animation {
+    width: 95vw;
+    height: 95vw;
+    max-height: none;
+  }
+  .haze__title {
+    width: 95vw;
+    font-size: 37vw;
+    white-space: nowrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .haze__animation {
+    transition: none;
+  }
+}
