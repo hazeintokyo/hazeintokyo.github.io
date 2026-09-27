@@ -82,7 +82,7 @@ body {
   display: none;
 }
 
-.haze--active { touch-action: none; }
+.haze--active { touch-action: pan-y pinch-zoom; }
 
 @media (max-width: 767px) and (pointer: coarse) {
   .haze--active { touch-action: auto; }
