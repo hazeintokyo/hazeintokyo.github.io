@@ -8,16 +8,32 @@
   const status = document.querySelector('[data-status]');
   const ctx = canvas.getContext('2d');
   let image, ready = false, active = false, loading = false;
-  let position = 0, velocity = 0, last = -1, raf = 0, previous = 0, key = null, held = 0, pointer = null;
-  let direction = -1, opposing = 0, wheel = null, suspended = document.hidden;
+  let position = 0, velocity = 0, tapMotion = 0, last = -1, raf = 0, previous = 0, key = null, held = 0, pointer = null;
+  let direction = -1, opposing = 0, wheel = null, pointerMomentum = false, suspended = document.hidden;
   const duration = asset.frames / asset.fps;
-  const idleVelocity = 1;
-  const maxVelocity = 10;
-  const dragSensitivity = .0165;
-  const wheelSensitivity = .00825;
+  const idleVelocity = 1.6;
+  const maxVelocity = 14;
+  const dragSensitivity = .022;
+  const wheelSensitivity = .011;
+  const dragSmoothing = 32;
+  const tapDuration = 280;
+  const tapDistance = 12;
+  const tapNetDistance = 2;
+  const mouseClickDuration = 500;
+  const mouseClickDistance = 6;
+  const tapImpulse = 3.5;
+  // Lose about 95% of extra pointer speed over 1.5 seconds.
+  const pointerMomentumDecay = 2;
+  const tapDecay = pointerMomentumDecay;
   const wrap = n => ((n % duration) + duration) % duration;
   const defaultVelocity = () => direction * idleVelocity;
   const clampVelocity = n => Math.max(-maxVelocity, Math.min(maxVelocity, n));
+  const shortestDelta = (target, current) => {
+    let delta = target - current;
+    if (delta > duration / 2) delta -= duration;
+    if (delta < -duration / 2) delta += duration;
+    return delta;
+  };
   // Only deliberate opposing movement changes the remembered idle direction.
   function remember(delta, threshold) {
     if (!delta) return false;
@@ -35,7 +51,7 @@
   canvas.width = canvas.height = asset.size;
   function stop() {
     releasePointer();
-    key = null; wheel = null; opposing = 0; velocity = 0;
+    key = null; wheel = null; opposing = 0; velocity = 0; tapMotion = 0; pointerMomentum = false;
     cancelAnimationFrame(raf); raf = 0;
   }
   function draw() {
@@ -54,14 +70,21 @@
     raf = 0;
     const dt = Math.min((now - previous) / 1000, .05); previous = now;
     if (!active || suspended || document.hidden) return;
-    if (!pointer) {
+    if (pointer) {
+      const distance = shortestDelta(pointer.target, position);
+      position = wrap(position + distance * (1 - Math.exp(-dragSmoothing * dt)));
+      draw();
+    } else {
       if (key) velocity = direction * Math.min(1 + (now - held) / 250, maxVelocity);
       else {
         if (wheel && now - wheel.time >= 160) { wheel = null; opposing = 0; }
         const target = wheel ? direction * Math.max(idleVelocity, wheel.speed) : defaultVelocity();
-        velocity += (target - velocity) * (1 - Math.exp(-(wheel ? 18 : 7) * dt));
+        const decay = wheel ? 18 : pointerMomentum && velocity * direction > idleVelocity ? pointerMomentumDecay : 7;
+        velocity += (target - velocity) * (1 - Math.exp(-decay * dt));
       }
-      position = wrap(position + velocity * dt); draw();
+      position = wrap(position + (velocity + tapMotion) * dt);
+      tapMotion *= Math.exp(-tapDecay * dt);
+      draw();
     }
     // Keep advancing while motion is enabled. The previous condition stopped
     // the loop once velocity reached the idle target, so idle animation only
@@ -87,7 +110,7 @@
       last = -1;
       image = next; ready = true; draw();
       active = true; velocity = defaultVelocity(); root.classList.add('haze--active');
-      status.textContent = 'Scroll, drag, or hold left and right arrows to interact.';
+      status.textContent = 'Scroll, drag, tap, or hold left and right arrows to interact.';
       wake();
     } catch (_) { status.textContent = 'Animation could not load. Reload to try again.'; }
     finally { loading = false; }
@@ -96,6 +119,7 @@
     if (!active || suspended || e.ctrlKey) return;
     if (e.cancelable) e.preventDefault();
     if (pointer || key || (!e.deltaX && !e.deltaY)) return;
+    pointerMomentum = false; tapMotion = 0;
     const now = performance.now();
     const x = e.deltaX * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerWidth : 1);
     const y = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1);
@@ -123,26 +147,48 @@
     }
     stop();
     const now = performance.now();
-    pointer = {id:e.pointerId,x:e.clientX,time:now,samples:[{time:now,x:e.clientX}]};
+    pointer = {id:e.pointerId,type:e.pointerType,x:e.clientX,time:now,startX:e.clientX,startTime:now,moved:0,target:position,samples:[{time:now,x:e.clientX}]};
     root.setPointerCapture(e.pointerId);
     wake();
   });
   root.addEventListener('pointermove', e => {
     if (!pointer || pointer.id !== e.pointerId) return;
-    const now = performance.now(), delta = e.clientX - pointer.x;
-    if (!delta) return;
-    if (remember(delta, 3)) pointer.samples = [{time:now,x:pointer.x}];
-    position = wrap(position + delta * dragSensitivity);
-    pointer.samples.push({time:now,x:e.clientX});
+    const now = performance.now();
+    const samples = typeof e.getCoalescedEvents === 'function' ? [...e.getCoalescedEvents()] : [];
+    if (!samples.length || samples[samples.length - 1].clientX !== e.clientX) samples.push(e);
+    for (const sample of samples) {
+      const delta = sample.clientX - pointer.x;
+      if (!delta) continue;
+      if (remember(delta, 3)) {
+        pointer.samples = [{time:now,x:pointer.x}];
+        // Drop any unrendered movement from the previous direction so a
+        // deliberate reversal cannot drag the released motion back with it.
+        pointer.target = position;
+      }
+      pointer.target = wrap(pointer.target + delta * dragSensitivity);
+      pointer.moved += Math.abs(delta);
+      pointer.samples.push({time:now,x:sample.clientX});
+      Object.assign(pointer,{x:sample.clientX,time:now});
+    }
     // Keep one sample before the window boundary so release can interpolate it.
     while (pointer.samples.length > 2 && pointer.samples[1].time < now - 80) pointer.samples.shift();
-    Object.assign(pointer,{x:e.clientX,time:now}); draw();
+    wake();
   });
   root.addEventListener('pointerup', e => {
     if (!pointer || pointer.id !== e.pointerId) return;
     const now = performance.now(), samples = pointer.samples;
     velocity = 0;
-    if (now - pointer.time <= 100 && samples.length > 1) {
+    const tap = pointer.type === 'mouse'
+      ? now - pointer.startTime <= mouseClickDuration && pointer.moved <= mouseClickDistance
+      : now - pointer.startTime <= tapDuration && pointer.moved <= tapDistance &&
+        Math.abs(pointer.x - pointer.startX) < tapNetDistance;
+    if (tap) {
+      const bounds = (phone.matches ? gesture : root).getBoundingClientRect?.() || {left:0,right:innerWidth};
+      const midpoint = bounds.left + (bounds.right - bounds.left) / 2;
+      direction = pointer.startX < midpoint ? -1 : 1;
+      velocity = defaultVelocity();
+      wheel = null; opposing = 0; tapMotion = direction * tapImpulse;
+    } else if (now - pointer.time <= 100 && samples.length > 1) {
       const end = samples[samples.length - 1], startTime = Math.max(now - 80, samples[0].time);
       if (end.time > startTime) {
         let i = 0;
@@ -154,6 +200,11 @@
         if (Math.sign(speed) === direction) velocity = clampVelocity(speed);
       }
     }
+    if (!tap) {
+      const lag = shortestDelta(pointer.target, position);
+      if (Math.abs(lag) > .001 && Math.sign(lag) === direction) velocity = clampVelocity(velocity + lag * 8);
+    }
+    pointerMomentum = !tap && velocity * direction > idleVelocity;
     releasePointer(); opposing = 0; wake();
   });
   function cancelPointer(e) {
@@ -165,7 +216,7 @@
   window.addEventListener('keydown', e => {
     if (!active || suspended || !['ArrowLeft','ArrowRight'].includes(e.key)) return;
     e.preventDefault(); if (pointer || key === e.key) return;
-    wheel = null; opposing = 0; velocity = 0;
+    wheel = null; opposing = 0; velocity = 0; tapMotion = 0; pointerMomentum = false;
     key = e.key; direction = key === 'ArrowRight' ? 1 : -1;
     held = performance.now(); position = wrap(position + direction/asset.fps); draw(); wake();
   });
