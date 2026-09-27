@@ -61,14 +61,23 @@ body {
 .schedule-row__time { white-space: nowrap; }
 .event-details { min-width: 0; }
 .event-title { margin: 0; color: var(--schedule-venue); font-size: var(--menu-text); font-weight: 400; line-height: 1.35; }
-.event-venue { margin: 0; color: var(--schedule-venue); font-size: var(--menu-text); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-venue { margin: 0; padding-bottom: .5em; color: var(--schedule-venue); font-size: var(--menu-text); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event-area { color: var(--schedule-area); }
 .site-menu__content .event-venue { margin-bottom: 0; }
 .event-title a, .event-venue a { color: inherit; }
 .event-links { display: flex; flex-wrap: wrap; gap: var(--menu-space); margin-top: 0; }
 .event-links a, .site-menu__content a { color: var(--menu-primary); text-underline-offset: .2em; }
 .event-links a { color: var(--menu-muted); font-size: var(--menu-meta); text-decoration: none; }
-@media (max-width: 700px) { .schedule-row { grid-template-columns: max-content 6.75rem minmax(7rem, 1fr); gap: .5rem; } }
+@media (max-width: 700px) {
+  .schedule-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .35rem .75rem;
+    padding: .6rem 0;
+  }
+  .schedule-row__date { min-width: 0; }
+  .schedule-row__time { justify-self: end; }
+  .event-details { grid-column: 1 / -1; min-width: 0; }
+}
 
 .haze {
   position: relative;

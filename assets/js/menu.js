@@ -32,7 +32,8 @@
       const details = document.createElement('div'); details.className = 'event-details';
       const title = event.title ? document.createElement('h3') : null;
       if (title) { title.className = 'event-title'; title.textContent = event.title; }
-      const venueUrl = safeUrl(event.venueUrl);
+      const venueQuery = [event.venue, event.location].filter(Boolean).join(', ');
+      const venueUrl = safeUrl(event.venueUrl) || (venueQuery ? `https://maps.google.com/?q=${encodeURIComponent(venueQuery)}` : null);
       const venue = document.createElement('p'); venue.className = 'event-venue';
       if (event.venue) {
         if (venueUrl) { const venueLink = document.createElement('a'); venueLink.href = venueUrl; venueLink.target = '_blank'; venueLink.rel = 'noreferrer'; venueLink.textContent = event.venue; venue.append(venueLink); }
@@ -40,7 +41,7 @@
       }
       const area = document.createElement('span'); area.className = 'event-area'; area.textContent = event.location ? ` · ${event.location}` : '';
       const links = document.createElement('div'); links.className = 'event-links';
-      (Array.isArray(event.links) ? event.links : []).forEach(link => { const url = safeUrl(link?.url); if (!url || typeof link.label !== 'string') return; const anchor = document.createElement('a'); anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noreferrer'; anchor.setAttribute('aria-label', link.label); anchor.title = link.label; const shortLabel = link.label === 'RA.co' ? 'RA' : link.label.toLowerCase().includes('instagram') ? 'IG' : link.label.slice(0, 2).toUpperCase(); anchor.textContent = `[${shortLabel}]`; links.append(anchor); });
+      (Array.isArray(event.links) ? event.links : []).forEach(link => { const url = safeUrl(link?.url); if (!url || typeof link.label !== 'string') return; const anchor = document.createElement('a'); anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noreferrer'; anchor.setAttribute('aria-label', link.label); anchor.title = link.label; anchor.textContent = `[${link.label}]`; links.append(anchor); });
       if (title) details.append(title); if (event.venue) { venue.append(area); details.append(venue); } if (links.childElementCount) details.append(links); row.append(date, time, details); scheduleList.append(row);
     });
   };
