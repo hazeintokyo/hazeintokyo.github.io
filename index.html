@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="assets/css/site.css">
   </head>
   <body>
+    <button class="menu-toggle" type="button" data-menu-open aria-label="Open menu" aria-controls="site-menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
     <main class="haze" data-haze>
       <canvas class="haze__animation" data-animation width="360" height="360" aria-hidden="true"></canvas>
 
@@ -17,6 +20,25 @@
       <p class="haze__status" data-status aria-live="polite"></p>
     </main>
 
+    <div class="site-menu" id="site-menu" data-menu role="dialog" aria-modal="true" aria-label="HAZE information" hidden>
+      <button class="site-menu__close" type="button" data-menu-close aria-label="Close menu"><span aria-hidden="true">×</span></button>
+      <div class="site-menu__inner">
+        <div class="site-menu__content">
+          <div class="site-menu__tabs" role="tablist" aria-label="HAZE information categories">
+            <button id="tab-about" class="site-menu__tab" type="button" role="tab" aria-selected="true" aria-controls="panel-about" tabindex="0">About</button>
+            <button id="tab-schedules" class="site-menu__tab" type="button" role="tab" aria-selected="false" aria-controls="panel-schedules" tabindex="-1">Schedules</button>
+            <button id="tab-links" class="site-menu__tab" type="button" role="tab" aria-selected="false" aria-controls="panel-links" tabindex="-1">Links</button>
+            <button id="tab-credits" class="site-menu__tab" type="button" role="tab" aria-selected="false" aria-controls="panel-credits" tabindex="-1">Credits</button>
+          </div>
+          <section id="panel-about" class="site-menu__panel" role="tabpanel" aria-labelledby="tab-about"><h2>About</h2><p>HAZE provides the underground techno sounds, innovates for<br>the benefit of community, and inspires the scene through discovery.</p></section>
+          <section id="panel-schedules" class="site-menu__panel" role="tabpanel" aria-labelledby="tab-schedules" hidden><h2>Schedules</h2><div class="schedule-list" data-schedule-list><p class="schedule-status">Loading schedules…</p></div></section>
+          <section id="panel-links" class="site-menu__panel" role="tabpanel" aria-labelledby="tab-links" hidden><h2>Links</h2><p><a href="https://www.instagram.com/hazeintokyo" target="_blank" rel="noreferrer">Instagram</a></p></section>
+          <section id="panel-credits" class="site-menu__panel" role="tabpanel" aria-labelledby="tab-credits" hidden><h2>Credits</h2><p>“Neptune – Louvre Museum” 3D model by Benjamin Bardou, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>. Modified and edited by HAZE. <a href="https://sketchfab.com/3d-models/neptune-louvre-museum-e091d1ff1d2b44fd88d113fccb5623aa" target="_blank" rel="noreferrer">Original model</a>.</p></section>
+        </div>
+      </div>
+    </div>
+
     <script src="assets/js/sprite-controller.js" defer></script>
+    <script src="assets/js/menu.js" defer></script>
   </body>
 </html>

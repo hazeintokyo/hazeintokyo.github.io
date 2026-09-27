@@ -1,0 +1,48 @@
+[
+  {
+    "id": "2026-10-02-detour",
+    "startsAt": "2026-10-02T18:00:00+09:00",
+    "endsAt": "2026-10-02T23:00:00+09:00",
+    "venue": "DeTour",
+    "location": "Shibuya",
+    "links": [
+      { "label": "RA.co", "url": "https://ra.co/events/2546209" },
+      { "label": "Instagram", "url": "https://www.instagram.com/p/DdyFgAMTz_i/" }
+    ]
+  },
+  {
+    "id": "2026-10-30-debris-music-bar",
+    "startsAt": "2026-10-30T19:00:00+09:00",
+    "endsAt": "2026-10-31T03:00:00+09:00",
+    "venue": "Debris Music Bar",
+    "location": "Daikanyama"
+  },
+  {
+    "id": "2026-11-06-meimei",
+    "startsAt": "2026-11-06T00:00:00+09:00",
+    "time": "TBA",
+    "venue": "Meimei",
+    "location": "Shimokitazawa"
+  },
+  {
+    "id": "2026-11-13-livehaus",
+    "startsAt": "2026-11-13T00:00:00+09:00",
+    "time": "TBA",
+    "venue": "Livehaus",
+    "location": "Shimokitazawa"
+  },
+  {
+    "id": "2026-12-12-forestlimit",
+    "startsAt": "2026-12-12T00:00:00+09:00",
+    "time": "TBA",
+    "venue": "FORESTLIMIT",
+    "location": "Hatagaya"
+  },
+  {
+    "id": "2026-12-26-forestlimit",
+    "startsAt": "2026-12-26T00:00:00+09:00",
+    "time": "TBA",
+    "venue": "FORESTLIMIT",
+    "location": "Hatagaya"
+  }
+]

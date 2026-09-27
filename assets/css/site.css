@@ -3,6 +3,20 @@
   --haze-black: #000;
   --haze-white: #fff;
   --haze-side-padding: clamp(1.25rem, 4vw, 4rem);
+  --menu-primary: rgb(255 255 255 / 100%);
+  --menu-secondary: rgb(255 255 255 / 65%);
+  --menu-muted: rgb(255 255 255 / 45%);
+  --menu-rule: rgb(255 255 255 / 25%);
+  --menu-space: .75rem;
+  --menu-text: .875rem;
+  --menu-meta: .7rem;
+  --menu-heading: 1.5rem;
+  --schedule-date: #f2f2f2;
+  --schedule-time: #c8c8c8;
+  --schedule-venue: #a6a6a6;
+  --schedule-area: #707070;
+  --schedule-tba: #555;
+  --schedule-line: #3a3a3a;
 }
 
 * {
@@ -21,6 +35,40 @@ body {
   overflow: hidden;
   font-family: Helvetica, Arial, sans-serif;
 }
+
+.menu-toggle, .site-menu__close { appearance: none; border: 0; background: transparent; color: var(--haze-white); cursor: pointer; }
+.menu-toggle { position: fixed; z-index: 10; top: calc(env(safe-area-inset-top) + 1rem); right: calc(env(safe-area-inset-right) + 1rem); display: grid; width: 48px; height: 48px; place-items: center; }
+.menu-toggle:focus-visible, .site-menu__close:focus-visible { outline: 2px solid var(--haze-white); outline-offset: 3px; }
+.site-menu[hidden] { display: none; }
+.site-menu { position: fixed; z-index: 20; inset: 0; overflow-y: auto; overscroll-behavior: contain; background: rgb(0 0 0 / 90%); color: var(--haze-white); font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+.site-menu__inner { position: relative; left: 50%; width: min(90%, 720px); min-height: 100%; margin: 0; transform: translateX(-50%); padding: calc(env(safe-area-inset-top) + 1rem) clamp(1.25rem, 6vw, 4rem) calc(env(safe-area-inset-bottom) + 4rem); }
+.site-menu__close { position: fixed; top: calc(env(safe-area-inset-top) + 1rem); right: calc(env(safe-area-inset-right) + 1rem); z-index: 1; display: grid; width: 48px; height: 48px; margin: 0; place-items: center; font: inherit; }
+.site-menu__close span { font-size: 1.5rem; line-height: 1; }
+.site-menu__content { display: grid; gap: clamp(2rem, 5vh, 3.5rem); }
+.site-menu__tabs { display: flex; flex-wrap: wrap; gap: .35rem 1.25rem; border-bottom: 1px solid var(--menu-rule); }
+.site-menu__tab { appearance: none; border: 0; border-bottom: 1px solid transparent; margin-bottom: -1px; padding: .5rem 0 .75rem; background: transparent; color: var(--menu-muted); cursor: pointer; font: inherit; font-size: var(--menu-meta); }
+.site-menu__tab[aria-selected="true"] { border-bottom-color: var(--haze-white); color: var(--haze-white); }
+.site-menu__tab:focus-visible { outline: 2px solid var(--haze-white); outline-offset: 4px; }
+.site-menu__content section { max-width: 38rem; }
+.site-menu__content h2 { margin: 0 0 var(--menu-space); color: var(--menu-primary); font-size: var(--menu-heading); line-height: 1; }
+.site-menu__content p { margin: 0 0 var(--menu-space); color: var(--menu-secondary); font-size: var(--menu-text); line-height: 1.55; }
+.schedule-list { display: grid; gap: var(--menu-space); }
+.schedule-status { color: var(--menu-muted); }
+.schedule-row { display: grid; grid-template-columns: 12rem 7rem minmax(0, 1fr); gap: var(--menu-space); align-items: start; padding: var(--menu-space) 0; border-top: 1px solid var(--schedule-line); }
+.schedule-row__date { color: var(--schedule-date); font-size: var(--menu-text); line-height: 1.35; white-space: nowrap; }
+.schedule-row__time { color: var(--schedule-time); font-size: var(--menu-text); line-height: 1.35; white-space: nowrap; }
+.schedule-row--tba .schedule-row__time { color: var(--schedule-tba); }
+.schedule-row__time { white-space: nowrap; }
+.event-details { min-width: 0; }
+.event-title { margin: 0; color: var(--schedule-venue); font-size: var(--menu-text); font-weight: 400; line-height: 1.35; }
+.event-venue { margin: 0; color: var(--schedule-venue); font-size: var(--menu-text); line-height: 1.35; }
+.event-area { margin: 0; color: var(--schedule-area); font-size: var(--menu-text); line-height: 1.35; }
+.site-menu__content .event-venue, .site-menu__content .event-area { margin-bottom: 0; }
+.event-title a, .event-venue a { color: inherit; }
+.event-links { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--menu-space); margin-top: 0; }
+.event-links a, .site-menu__content a { color: var(--menu-primary); text-underline-offset: .2em; }
+.event-links a { color: var(--menu-muted); font-size: var(--menu-meta); text-decoration: none; }
+@media (max-width: 700px) { .schedule-row { grid-template-columns: 10.5rem 6.5rem minmax(7rem, 1fr); gap: .5rem; } }
 
 .haze {
   position: relative;
