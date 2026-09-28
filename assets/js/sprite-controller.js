@@ -116,9 +116,20 @@
     if (!active || suspended || document.hidden || raf) return;
     previous = performance.now(); raf = requestAnimationFrame(tick);
   }
+  async function loadPoster() {
+    try {
+      const poster = new Image(); poster.src = 'assets/media/haze-poster.webp';
+      await poster.decode();
+      if (ready) return;
+      ctx.globalCompositeOperation = 'copy';
+      ctx.drawImage(poster, 0, 0, canvas.width, canvas.height);
+      canvas.dataset.frame = 'poster';
+    } catch (_) { /* The title remains visible if the optional poster fails. */ }
+  }
   async function load() {
     if (loading) return;
     loading = true; status.textContent = 'Loading animation…';
+    loadPoster();
     try {
       let candidate = asset;
       while (true) {
