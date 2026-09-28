@@ -18,7 +18,7 @@
   const ctx = canvas.getContext('2d');
   let image, ready = false, active = false, loading = false;
   let position = 0, velocity = 0, tapMotion = 0, last = -1, raf = 0, previous = 0, key = null, held = 0, pointer = null;
-  let direction = -1, opposing = 0, wheel = null, pointerMomentum = false, suspended = document.hidden;
+  let direction = -1, opposing = 0, wheel = null, momentumDecay = 0, suspended = document.hidden;
   const duration = asset.frames / asset.fps;
   const idleVelocity = 1.6;
   const maxVelocity = 14;
@@ -31,9 +31,19 @@
   const mouseClickDuration = 500;
   const mouseClickDistance = 6;
   const tapImpulse = 3.5;
-  // Lose about 95% of extra pointer speed over 1.5 seconds.
-  const pointerMomentumDecay = 2;
-  const tapDecay = pointerMomentumDecay;
+  // Gesture distance sets the time to lose 95% of extra speed.
+  const coastBaseDuration = 3;
+  const coastSecondsPerUnit = .8333333333;
+  const coastMaxDuration = 8;
+  const coastMinimumBoost = .75;
+  const coastMaxDistance = (coastMaxDuration - coastBaseDuration) / coastSecondsPerUnit;
+  const tapDecay = 2;
+  const addDistance = (distance, delta, sensitivity) => Math.min(coastMaxDistance, distance + Math.abs(delta) * sensitivity);
+  function startCoast(distance) {
+    if (!distance) return;
+    momentumDecay = -Math.log(.05) / Math.min(coastMaxDuration, coastBaseDuration + distance * coastSecondsPerUnit);
+    velocity = direction * Math.min(maxVelocity, Math.max(velocity * direction, idleVelocity + coastMinimumBoost));
+  }
   const wrap = n => ((n % duration) + duration) % duration;
   const defaultVelocity = () => direction * idleVelocity;
   const clampVelocity = n => Math.max(-maxVelocity, Math.min(maxVelocity, n));
@@ -49,7 +59,7 @@
     if (Math.sign(delta) === direction) { opposing = 0; return false; }
     opposing += Math.abs(delta);
     if (opposing < threshold) return false;
-    direction = Math.sign(delta); opposing = 0; velocity = 0;
+    direction = Math.sign(delta); opposing = 0; velocity = 0; momentumDecay = 0;
     return true;
   }
   function releasePointer() {
@@ -60,7 +70,7 @@
   canvas.width = canvas.height = asset.size;
   function stop() {
     releasePointer();
-    key = null; wheel = null; opposing = 0; velocity = 0; tapMotion = 0; pointerMomentum = false;
+    key = null; wheel = null; opposing = 0; velocity = 0; tapMotion = 0; momentumDecay = 0;
     cancelAnimationFrame(raf); raf = 0;
   }
   function draw() {
@@ -86,9 +96,9 @@
     } else {
       if (key) velocity = direction * Math.min(1 + (now - held) / 250, maxVelocity);
       else {
-        if (wheel && now - wheel.time >= 160) { wheel = null; opposing = 0; }
+        if (wheel && now - wheel.time >= 160) { startCoast(wheel.distance); wheel = null; opposing = 0; }
         const target = wheel ? direction * Math.max(idleVelocity, wheel.speed) : defaultVelocity();
-        const decay = wheel ? 18 : pointerMomentum && velocity * direction > idleVelocity ? pointerMomentumDecay : 7;
+        const decay = wheel ? 18 : momentumDecay || 7;
         velocity += (target - velocity) * (1 - Math.exp(-decay * dt));
       }
       position = wrap(position + (velocity + tapMotion) * dt);
@@ -137,20 +147,21 @@
     if (!active || suspended || e.ctrlKey) return;
     if (e.cancelable) e.preventDefault();
     if (pointer || key || (!e.deltaX && !e.deltaY)) return;
-    pointerMomentum = false; tapMotion = 0;
+    momentumDecay = 0; tapMotion = 0;
     const now = performance.now();
     const x = e.deltaX * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerWidth : 1);
     const y = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1);
     if (!wheel || now - wheel.time >= 160) {
-      wheel = {axis:Math.abs(x) > Math.abs(y) ? 'x' : 'y',time:now,speed:0};
+      wheel = {axis:Math.abs(x) > Math.abs(y) ? 'x' : 'y',time:now,speed:0,distance:0};
       opposing = 0; velocity = 0;
     }
     const delta = wheel.axis === 'x' ? -x : y;
     const elapsed = Math.max(.016, (now - wheel.time) / 1000);
     wheel.time = now;
     if (!delta) return;
-    if (remember(delta, 4)) wheel.speed = 0;
+    if (remember(delta, 4)) { wheel.speed = 0; wheel.distance = 0; }
     if (Math.sign(delta) === direction) {
+      wheel.distance = addDistance(wheel.distance, delta, wheelSensitivity);
       const speed = Math.min(maxVelocity, Math.abs(delta) * wheelSensitivity / elapsed);
       wheel.speed += (speed - wheel.speed) * .5;
     }
@@ -165,7 +176,7 @@
     }
     stop();
     const now = performance.now();
-    pointer = {id:e.pointerId,type:e.pointerType,x:e.clientX,time:now,startX:e.clientX,startTime:now,moved:0,target:position,samples:[{time:now,x:e.clientX}]};
+    pointer = {id:e.pointerId,type:e.pointerType,x:e.clientX,time:now,startX:e.clientX,startTime:now,moved:0,distance:0,target:position,samples:[{time:now,x:e.clientX}]};
     root.setPointerCapture(e.pointerId);
     wake();
   });
@@ -178,6 +189,7 @@
       const delta = sample.clientX - pointer.x;
       if (!delta) continue;
       if (remember(delta, 3)) {
+        pointer.distance = 0;
         pointer.samples = [{time:now,x:pointer.x}];
         // Drop any unrendered movement from the previous direction so a
         // deliberate reversal cannot drag the released motion back with it.
@@ -185,6 +197,7 @@
       }
       pointer.target = wrap(pointer.target + delta * dragSensitivity);
       pointer.moved += Math.abs(delta);
+      if (Math.sign(delta) === direction) pointer.distance = addDistance(pointer.distance, delta, dragSensitivity);
       pointer.samples.push({time:now,x:sample.clientX});
       Object.assign(pointer,{x:sample.clientX,time:now});
     }
@@ -218,11 +231,11 @@
         if (Math.sign(speed) === direction) velocity = clampVelocity(speed);
       }
     }
-    if (!tap) {
+    if (!tap && now - pointer.time <= 100 && pointer.distance > 0) {
       const lag = shortestDelta(pointer.target, position);
       if (Math.abs(lag) > .001 && Math.sign(lag) === direction) velocity = clampVelocity(velocity + lag * 8);
     }
-    pointerMomentum = !tap && velocity * direction > idleVelocity;
+    if (!tap && now - pointer.time <= 100) startCoast(pointer.distance);
     releasePointer(); opposing = 0; wake();
   });
   function cancelPointer(e) {
@@ -234,7 +247,7 @@
   window.addEventListener('keydown', e => {
     if (!active || suspended || !['ArrowLeft','ArrowRight'].includes(e.key)) return;
     e.preventDefault(); if (pointer || key === e.key) return;
-    wheel = null; opposing = 0; velocity = 0; tapMotion = 0; pointerMomentum = false;
+    wheel = null; opposing = 0; velocity = 0; tapMotion = 0; momentumDecay = 0;
     key = e.key; direction = key === 'ArrowRight' ? 1 : -1;
     held = performance.now(); position = wrap(position + direction/asset.fps); draw(); wake();
   });
