@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const asset = { url: 'assets/media/haze-sheet.png', frames: 240, fps: 18, size: 360, columns: 16, rows: 15 };
+  const asset = { url: 'assets/media/haze-sheet.webp', frames: 240, fps: 18, size: 480, columns: 16, rows: 15 };
   const root = document.querySelector('[data-haze]');
   const canvas = document.querySelector('[data-animation]');
   const gesture = document.querySelector('[data-gesture]');
