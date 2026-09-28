@@ -42,6 +42,8 @@
   }
   const idleVelocity = 1.6;
   const maxVelocity = 14;
+  const reducedMaxVelocity = 3.2;
+  const velocityLimit = () => reducedMotion.matches ? reducedMaxVelocity : maxVelocity;
   const dragSensitivity = .022;
   const wheelSensitivity = .011;
   const dragSmoothing = 32;
@@ -69,11 +71,11 @@
       idleVelocity + coastMinimumBoost + coastDistance * coastDistanceSpeedBoost,
       Math.abs(carriedVelocity) + distance * coastDistanceSpeedBoost
     );
-    velocity = direction * Math.min(maxVelocity, chargedVelocity);
+    velocity = direction * Math.min(velocityLimit(), chargedVelocity);
   }
   const wrap = n => ((n % duration) + duration) % duration;
-  const defaultVelocity = () => direction * idleVelocity;
-  const clampVelocity = n => Math.max(-maxVelocity, Math.min(maxVelocity, n));
+  const defaultVelocity = () => direction * (reducedMotion.matches ? 0 : idleVelocity);
+  const clampVelocity = n => Math.max(-velocityLimit(), Math.min(velocityLimit(), n));
   const shortestDelta = (target, current) => {
     let delta = target - current;
     if (delta > duration / 2) delta -= duration;
@@ -121,7 +123,7 @@
       position = wrap(position + distance * (1 - Math.exp(-dragSmoothing * dt)));
       draw();
     } else {
-      if (key) velocity = direction * Math.min(1 + (now - held) / 250, maxVelocity);
+      if (key) velocity = direction * Math.min(1 + (now - held) / 250, velocityLimit());
       else {
         if (wheel && now - wheel.time >= 160) {
           const completedWheel = wheel; wheel = null; opposing = 0;
@@ -142,7 +144,8 @@
     // Keep advancing while motion is enabled. The previous condition stopped
     // the loop once velocity reached the idle target, so idle animation only
     // rendered one frame instead of continuing through the sprite sheet.
-    if (active && !document.hidden) {
+    const reducedMotionHasWork = pointer || key || wheel || momentumDecay || Math.abs(velocity) > .01 || Math.abs(tapMotion) > .01;
+    if (active && !document.hidden && (!reducedMotion.matches || reducedMotionHasWork)) {
       raf = requestAnimationFrame(tick);
     }
   }
@@ -186,13 +189,13 @@
         canvas.width = canvas.height = asset.size;
         last = -1; ready = true; draw();
       } while (loadingRequested);
-      active = ready && !reducedMotion.matches;
+      active = ready;
       if (active) { if (!wasActive) velocity = defaultVelocity(); root.classList.add('haze--active'); }
       else root.classList.remove('haze--active');
-      status.textContent = reducedMotion.matches ? 'Animation paused because reduced motion is enabled.' : ready ? 'Scroll, drag, tap, or hold left and right arrows to interact.' : 'Animation could not load. Reload to try again.';
+      status.textContent = reducedMotion.matches ? 'Reduced motion is on. Drag, scroll, tap, or use the arrow keys; motion pauses when idle.' : ready ? 'Scroll, drag, tap, or hold left and right arrows to interact.' : 'Animation could not load. Reload to try again.';
       if (active) wake();
     } catch (_) {
-      active = ready && !reducedMotion.matches;
+      active = ready;
       status.textContent = ready ? 'Animation could not update. The previous animation is still available.' : 'Animation could not load. Reload to try again.';
     } finally {
       loading = false;
@@ -206,8 +209,8 @@
   }
   function updateReducedMotion() {
     if (reducedMotion.matches) {
-      stop(); active = false; root.classList.remove('haze--active');
-      status.textContent = 'Animation paused because reduced motion is enabled.';
+      stop(); active = ready; velocity = defaultVelocity(); root.classList.add('haze--active');
+      status.textContent = 'Reduced motion is on. Drag, scroll, tap, or use the arrow keys; motion pauses when idle.';
     } else if (ready) {
       active = true; velocity = defaultVelocity(); root.classList.add('haze--active');
       status.textContent = 'Scroll, drag, tap, or hold left and right arrows to interact.'; wake();
@@ -234,7 +237,7 @@
     if (remember(delta, 4)) { wheel.speed = 0; wheel.distance = 0; wheel.carriedVelocity = 0; }
     if (Math.sign(delta) === direction) {
       wheel.distance = addDistance(wheel.distance, delta, wheelSensitivity);
-      const speed = Math.min(maxVelocity, Math.abs(delta) * wheelSensitivity / elapsed);
+      const speed = Math.min(velocityLimit(), Math.abs(delta) * wheelSensitivity / elapsed);
       wheel.speed += (speed - wheel.speed) * .5;
     }
     wake();
