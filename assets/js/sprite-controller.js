@@ -8,9 +8,11 @@
   };
   const phone = matchMedia('(max-width: 767px) and (pointer: coarse)');
   const largeScreen = matchMedia('(min-width: 1440px)');
-  const selected = phone.matches ? assets.phone : largeScreen.matches ? assets.large : assets.medium;
-  const fallbackSizes = [assets.large.size,assets.medium.size,assets.phone.size];
-  const asset = {...selected,frames:assets.frames,fps:assets.fps,columns:assets.columns,rows:assets.rows};
+  const preferredAsset = () => phone.matches ? assets.phone : largeScreen.matches ? assets.large : assets.medium;
+  const fallbackSizes = {480:[600,700],600:[480,700],700:[600,480]};
+  const mediaAssets = new Map([[480,assets.phone],[600,assets.medium],[700,assets.large]]);
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const asset = {...preferredAsset(),frames:assets.frames,fps:assets.fps,columns:assets.columns,rows:assets.rows};
   const root = document.querySelector('[data-haze]');
   const canvas = document.querySelector('[data-animation]');
   const gesture = document.querySelector('[data-gesture]');
@@ -18,8 +20,26 @@
   const ctx = canvas.getContext('2d');
   let image, ready = false, active = false, loading = false;
   let position = 0, velocity = 0, tapMotion = 0, last = -1, raf = 0, previous = 0, key = null, held = 0, pointer = null;
-  let direction = -1, opposing = 0, wheel = null, momentumDecay = 0, suspended = document.hidden;
+  const directionStorageKey = 'haze-animation-direction';
+  const positionStorageKey = 'haze-animation-position';
+  let direction = -1, opposing = 0, wheel = null, momentumDecay = 0, coastDistance = 0, suspended = document.hidden;
+  try {
+    const savedDirection = Number(localStorage.getItem(directionStorageKey));
+    if (savedDirection === -1 || savedDirection === 1) direction = savedDirection;
+  } catch (_) { /* Storage may be unavailable; keep the default direction. */ }
+  function saveDirection() {
+    try { localStorage.setItem(directionStorageKey, String(direction)); }
+    catch (_) { /* Animation still works when storage is unavailable. */ }
+  }
+  try {
+    const savedPosition = Number(localStorage.getItem(positionStorageKey));
+    if (Number.isFinite(savedPosition) && savedPosition >= 0 && savedPosition < assets.frames) position = savedPosition / assets.fps;
+  } catch (_) { /* Storage may be unavailable; start from the first frame. */ }
   const duration = asset.frames / asset.fps;
+  function savePosition() {
+    try { localStorage.setItem(positionStorageKey, String(Math.round(position * asset.fps) % asset.frames)); }
+    catch (_) { /* Animation still works when storage is unavailable. */ }
+  }
   const idleVelocity = 1.6;
   const maxVelocity = 14;
   const dragSensitivity = .022;
@@ -36,13 +56,20 @@
   const coastSecondsPerUnit = .8333333333;
   const coastMaxDuration = 8;
   const coastMinimumBoost = .75;
+  const coastDistanceSpeedBoost = 1.2;
   const coastMaxDistance = (coastMaxDuration - coastBaseDuration) / coastSecondsPerUnit;
   const tapDecay = 2;
   const addDistance = (distance, delta, sensitivity) => Math.min(coastMaxDistance, distance + Math.abs(delta) * sensitivity);
-  function startCoast(distance) {
+  function startCoast(distance, carriedVelocity=0, releaseVelocity=velocity) {
     if (!distance) return;
-    momentumDecay = -Math.log(.05) / Math.min(coastMaxDuration, coastBaseDuration + distance * coastSecondsPerUnit);
-    velocity = direction * Math.min(maxVelocity, Math.max(velocity * direction, idleVelocity + coastMinimumBoost));
+    coastDistance = Math.min(coastMaxDistance, coastDistance + distance);
+    momentumDecay = -Math.log(.05) / Math.min(coastMaxDuration, coastBaseDuration + coastDistance * coastSecondsPerUnit);
+    const chargedVelocity = Math.max(
+      Math.abs(releaseVelocity),
+      idleVelocity + coastMinimumBoost + coastDistance * coastDistanceSpeedBoost,
+      Math.abs(carriedVelocity) + distance * coastDistanceSpeedBoost
+    );
+    velocity = direction * Math.min(maxVelocity, chargedVelocity);
   }
   const wrap = n => ((n % duration) + duration) % duration;
   const defaultVelocity = () => direction * idleVelocity;
@@ -59,7 +86,7 @@
     if (Math.sign(delta) === direction) { opposing = 0; return false; }
     opposing += Math.abs(delta);
     if (opposing < threshold) return false;
-    direction = Math.sign(delta); opposing = 0; velocity = 0; momentumDecay = 0;
+    direction = Math.sign(delta); saveDirection(); opposing = 0; velocity = 0; momentumDecay = 0; coastDistance = 0;
     return true;
   }
   function releasePointer() {
@@ -70,7 +97,7 @@
   canvas.width = canvas.height = asset.size;
   function stop() {
     releasePointer();
-    key = null; wheel = null; opposing = 0; velocity = 0; tapMotion = 0; momentumDecay = 0;
+    key = null; wheel = null; opposing = 0; velocity = 0; tapMotion = 0; momentumDecay = 0; coastDistance = 0;
     cancelAnimationFrame(raf); raf = 0;
   }
   function draw() {
@@ -96,12 +123,19 @@
     } else {
       if (key) velocity = direction * Math.min(1 + (now - held) / 250, maxVelocity);
       else {
-        if (wheel && now - wheel.time >= 160) { startCoast(wheel.distance); wheel = null; opposing = 0; }
+        if (wheel && now - wheel.time >= 160) {
+          const completedWheel = wheel; wheel = null; opposing = 0;
+          startCoast(completedWheel.distance, completedWheel.carriedVelocity, direction * completedWheel.speed);
+        }
         const target = wheel ? direction * Math.max(idleVelocity, wheel.speed) : defaultVelocity();
         const decay = wheel ? 18 : momentumDecay || 7;
         velocity += (target - velocity) * (1 - Math.exp(-decay * dt));
+        if (!wheel && momentumDecay && Math.abs(velocity - target) < .01) {
+          momentumDecay = 0; coastDistance = 0;
+        }
       }
       position = wrap(position + (velocity + tapMotion) * dt);
+      savePosition();
       tapMotion *= Math.exp(-tapDecay * dt);
       draw();
     }
@@ -126,34 +160,61 @@
       canvas.dataset.frame = 'poster';
     } catch (_) { /* The title remains visible if the optional poster fails. */ }
   }
+  let loadingRequested = false;
   async function load() {
-    if (loading) return;
-    loading = true; status.textContent = 'Loading animation…';
-    loadPoster();
+    if (loading) { loadingRequested = true; return; }
+    const wasActive = active;
+    loading = true; status.textContent = ready ? 'Updating animation…' : 'Loading animation…';
+    if (!ready) loadPoster();
     try {
-      let candidate = asset;
-      while (true) {
-        const next = new Image(); next.src = candidate.url;
-        try { await next.decode(); image = next; asset.url = candidate.url; asset.size = candidate.size; break; }
-        catch (error) {
-          const index = fallbackSizes.indexOf(candidate.size);
-          if (index < 0 || index + 1 >= fallbackSizes.length) throw error;
-          candidate = [assets.large,assets.medium,assets.phone].find(item => item.size === fallbackSizes[index + 1]);
+      do {
+        loadingRequested = false;
+        const preferred = preferredAsset();
+        const candidates = [preferred, ...fallbackSizes[preferred.size].map(size => mediaAssets.get(size))];
+        let decoded = null;
+        for (const candidate of candidates) {
+          const next = new Image(); next.src = candidate.url;
+          try { await next.decode(); decoded = {image:next,candidate}; break; }
+          catch (_) { /* Try the next available resolution tier. */ }
         }
-      }
-      const frameWidth = image.naturalWidth / asset.columns;
-      const frameHeight = image.naturalHeight / asset.rows;
-      if (!Number.isInteger(frameWidth) || frameWidth < 1 || frameWidth !== frameHeight) throw Error('Expected a 16 by 15 grid of square frames');
-      asset.size = frameWidth;
-      canvas.width = canvas.height = asset.size;
-      last = -1;
-      ready = true; draw();
-      active = true; velocity = defaultVelocity(); root.classList.add('haze--active');
-      status.textContent = 'Scroll, drag, tap, or hold left and right arrows to interact.';
-      wake();
-    } catch (_) { status.textContent = 'Animation could not load. Reload to try again.'; }
-    finally { loading = false; }
+        if (loadingRequested || preferredAsset().size !== preferred.size) { loadingRequested = true; continue; }
+        if (!decoded) throw Error('No sprite sheet could be decoded');
+        const frameWidth = decoded.image.naturalWidth / asset.columns;
+        const frameHeight = decoded.image.naturalHeight / asset.rows;
+        if (!Number.isInteger(frameWidth) || frameWidth < 1 || frameWidth !== frameHeight) throw Error('Expected a 16 by 15 grid of square frames');
+        image = decoded.image; asset.url = decoded.candidate.url; asset.size = frameWidth;
+        canvas.width = canvas.height = asset.size;
+        last = -1; ready = true; draw();
+      } while (loadingRequested);
+      active = ready && !reducedMotion.matches;
+      if (active) { if (!wasActive) velocity = defaultVelocity(); root.classList.add('haze--active'); }
+      else root.classList.remove('haze--active');
+      status.textContent = reducedMotion.matches ? 'Animation paused because reduced motion is enabled.' : ready ? 'Scroll, drag, tap, or hold left and right arrows to interact.' : 'Animation could not load. Reload to try again.';
+      if (active) wake();
+    } catch (_) {
+      active = ready && !reducedMotion.matches;
+      status.textContent = ready ? 'Animation could not update. The previous animation is still available.' : 'Animation could not load. Reload to try again.';
+    } finally {
+      loading = false;
+      if (loadingRequested) load();
+    }
   }
+  const handleMediaChange = () => load();
+  for (const media of [phone,largeScreen]) {
+    if (typeof media.addEventListener === 'function') media.addEventListener('change', handleMediaChange);
+    else if (typeof media.addListener === 'function') media.addListener(handleMediaChange);
+  }
+  function updateReducedMotion() {
+    if (reducedMotion.matches) {
+      stop(); active = false; root.classList.remove('haze--active');
+      status.textContent = 'Animation paused because reduced motion is enabled.';
+    } else if (ready) {
+      active = true; velocity = defaultVelocity(); root.classList.add('haze--active');
+      status.textContent = 'Scroll, drag, tap, or hold left and right arrows to interact.'; wake();
+    }
+  }
+  if (typeof reducedMotion.addEventListener === 'function') reducedMotion.addEventListener('change', updateReducedMotion);
+  else if (typeof reducedMotion.addListener === 'function') reducedMotion.addListener(updateReducedMotion);
   root.addEventListener('wheel', e => {
     if (!active || suspended || e.ctrlKey) return;
     if (e.cancelable) e.preventDefault();
@@ -163,14 +224,14 @@
     const x = e.deltaX * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerWidth : 1);
     const y = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1);
     if (!wheel || now - wheel.time >= 160) {
-      wheel = {axis:Math.abs(x) > Math.abs(y) ? 'x' : 'y',time:now,speed:0,distance:0};
+      wheel = {axis:Math.abs(x) > Math.abs(y) ? 'x' : 'y',time:now,speed:0,distance:0,carriedVelocity:velocity};
       opposing = 0; velocity = 0;
     }
     const delta = wheel.axis === 'x' ? -x : y;
     const elapsed = Math.max(.016, (now - wheel.time) / 1000);
     wheel.time = now;
     if (!delta) return;
-    if (remember(delta, 4)) { wheel.speed = 0; wheel.distance = 0; }
+    if (remember(delta, 4)) { wheel.speed = 0; wheel.distance = 0; wheel.carriedVelocity = 0; }
     if (Math.sign(delta) === direction) {
       wheel.distance = addDistance(wheel.distance, delta, wheelSensitivity);
       const speed = Math.min(maxVelocity, Math.abs(delta) * wheelSensitivity / elapsed);
@@ -185,7 +246,11 @@
       const bounds = gesture.getBoundingClientRect();
       if (e.clientX < bounds.left || e.clientX >= bounds.right) return;
     }
-    stop();
+    key = null; opposing = 0; tapMotion = 0;
+    if (wheel) {
+      const completedWheel = wheel; wheel = null;
+      startCoast(completedWheel.distance, completedWheel.carriedVelocity, direction * completedWheel.speed);
+    }
     const now = performance.now();
     pointer = {id:e.pointerId,type:e.pointerType,x:e.clientX,time:now,startX:e.clientX,startTime:now,moved:0,distance:0,target:position,samples:[{time:now,x:e.clientX}]};
     root.setPointerCapture(e.pointerId);
@@ -219,6 +284,7 @@
   root.addEventListener('pointerup', e => {
     if (!pointer || pointer.id !== e.pointerId) return;
     const now = performance.now(), samples = pointer.samples;
+    const carriedVelocity = velocity;
     velocity = 0;
     const tap = pointer.type === 'mouse'
       ? now - pointer.startTime <= mouseClickDuration && pointer.moved <= mouseClickDistance
@@ -228,6 +294,8 @@
       const bounds = (phone.matches ? gesture : root).getBoundingClientRect?.() || {left:0,right:innerWidth};
       const midpoint = bounds.left + (bounds.right - bounds.left) / 2;
       direction = pointer.startX < midpoint ? -1 : 1;
+      saveDirection();
+      momentumDecay = 0; coastDistance = 0;
       velocity = defaultVelocity();
       wheel = null; opposing = 0; tapMotion = direction * tapImpulse;
     } else if (now - pointer.time <= 100 && samples.length > 1) {
@@ -246,7 +314,8 @@
       const lag = shortestDelta(pointer.target, position);
       if (Math.abs(lag) > .001 && Math.sign(lag) === direction) velocity = clampVelocity(velocity + lag * 8);
     }
-    if (!tap && now - pointer.time <= 100) startCoast(pointer.distance);
+    if (!tap && now - pointer.time <= 100) startCoast(pointer.distance, carriedVelocity, velocity);
+    else if (!tap) { momentumDecay = 0; coastDistance = 0; velocity = defaultVelocity(); }
     releasePointer(); opposing = 0; wake();
   });
   function cancelPointer(e) {
@@ -258,9 +327,10 @@
   window.addEventListener('keydown', e => {
     if (!active || suspended || !['ArrowLeft','ArrowRight'].includes(e.key)) return;
     e.preventDefault(); if (pointer || key === e.key) return;
-    wheel = null; opposing = 0; velocity = 0; tapMotion = 0; momentumDecay = 0;
+    wheel = null; opposing = 0; velocity = 0; tapMotion = 0; momentumDecay = 0; coastDistance = 0;
     key = e.key; direction = key === 'ArrowRight' ? 1 : -1;
-    held = performance.now(); position = wrap(position + direction/asset.fps); draw(); wake();
+    saveDirection();
+    held = performance.now(); position = wrap(position + direction/asset.fps); savePosition(); draw(); wake();
   });
   window.addEventListener('keyup', e => { if (e.key === key) key = null; });
   window.addEventListener('blur', () => { suspended = true; stop(); });
