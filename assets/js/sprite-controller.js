@@ -1,10 +1,15 @@
 (() => {
   'use strict';
-  const asset = { url: 'assets/media/haze-sheet.webp', frames: 240, fps: 18, size: 480, columns: 16, rows: 15 };
+  const assets = {
+    phone: {url:'assets/media/haze-sheet-480.webp',size:480},
+    larger: {url:'assets/media/haze-sheet-600.webp',size:600},
+    frames:240, fps:18, columns:16, rows:15
+  };
+  const phone = matchMedia('(max-width: 767px) and (pointer: coarse)');
+  const asset = {...(phone.matches ? assets.phone : assets.larger),frames:assets.frames,fps:assets.fps,columns:assets.columns,rows:assets.rows};
   const root = document.querySelector('[data-haze]');
   const canvas = document.querySelector('[data-animation]');
   const gesture = document.querySelector('[data-gesture]');
-  const phone = matchMedia('(max-width: 767px) and (pointer: coarse)');
   const status = document.querySelector('[data-status]');
   const ctx = canvas.getContext('2d');
   let image, ready = false, active = false, loading = false;
@@ -101,14 +106,22 @@
     if (loading) return;
     loading = true; status.textContent = 'Loading animation…';
     try {
-      const next = new Image(); next.src = asset.url; await next.decode();
-      const frameWidth = next.naturalWidth / asset.columns;
-      const frameHeight = next.naturalHeight / asset.rows;
+      const next = new Image(); next.src = asset.url;
+      try { await next.decode(); }
+      catch (error) {
+        if (asset.size === assets.phone.size) throw error;
+        asset.url = assets.phone.url; asset.size = assets.phone.size;
+        const fallback = new Image(); fallback.src = asset.url; await fallback.decode();
+        image = fallback;
+      }
+      const decoded = image || next;
+      const frameWidth = decoded.naturalWidth / asset.columns;
+      const frameHeight = decoded.naturalHeight / asset.rows;
       if (!Number.isInteger(frameWidth) || frameWidth < 1 || frameWidth !== frameHeight) throw Error('Expected a 16 by 15 grid of square frames');
       asset.size = frameWidth;
       canvas.width = canvas.height = asset.size;
       last = -1;
-      image = next; ready = true; draw();
+      image = decoded; ready = true; draw();
       active = true; velocity = defaultVelocity(); root.classList.add('haze--active');
       status.textContent = 'Scroll, drag, tap, or hold left and right arrows to interact.';
       wake();
