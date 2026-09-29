@@ -45,9 +45,9 @@
   const motionScale = () => reducedMotion.matches ? .25 : 1;
   const idleVelocity = 1.6;
   const maxVelocity = 14;
-  const dragSensitivity = .044;
-  const dragTravelSensitivity = .088;
-  const wheelSensitivity = .022;
+  const dragSensitivity = .022;
+  const wheelSensitivity = .011;
+  const precisionWheelSensitivity = .088;
   const dragSmoothing = 32;
   const tapDuration = 280;
   const tapDistance = 12;
@@ -136,7 +136,7 @@
           startCoast(completedWheel.distance, velocity, completedWheel.carriedVelocity);
         }
         const target = wheel ? direction * Math.max(idleVelocity, wheel.speed, direction * wheel.carriedVelocity) : defaultVelocity();
-        const decay = wheel ? 18 : momentumDecay || 7;
+        const decay = wheel ? wheel.precision ? 36 : 18 : momentumDecay || 7;
         velocity += (target - velocity) * (1 - Math.exp(-decay * dt));
       }
       position = wrap(position + (velocity + tapMotion) * dt * motionScale());
@@ -211,7 +211,10 @@
     const y = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1);
     if (!wheel || now - wheel.time >= 160) {
       const carriedVelocity = momentumDecay && Math.sign(velocity) === direction ? velocity : 0;
-      wheel = {axis:Math.abs(x) > Math.abs(y) ? 'x' : 'y',time:now,speed:0,distance:0,carriedVelocity};
+      // WheelEvent has no device type. Small pixel deltas are the best available
+      // signal for continuous trackpad-like scrolling; lock it for this gesture.
+      const precision = e.deltaMode === 0 && Math.max(Math.abs(x), Math.abs(y)) < 80;
+      wheel = {axis:Math.abs(x) > Math.abs(y) ? 'x' : 'y',precision,time:now,speed:0,distance:0,carriedVelocity};
       opposing = 0;
     }
     momentumDecay = 0; tapMotion = 0;
@@ -221,9 +224,10 @@
     if (!delta) return;
     if (remember(delta, 4)) { wheel.speed = 0; wheel.distance = 0; wheel.carriedVelocity = 0; }
     if (Math.sign(delta) === direction) {
-      wheel.distance = addDistance(wheel.distance, delta, wheelSensitivity);
-      const speed = Math.min(maxVelocity, Math.abs(delta) * wheelSensitivity / elapsed);
-      wheel.speed += (speed - wheel.speed) * .5;
+      const sensitivity = wheel.precision ? precisionWheelSensitivity : wheelSensitivity;
+      wheel.distance = addDistance(wheel.distance, delta, sensitivity);
+      const speed = Math.min(maxVelocity, Math.abs(delta) * sensitivity / elapsed);
+      wheel.speed += (speed - wheel.speed) * (wheel.precision ? .9 : .5);
     }
     wake();
   }, {passive:false});
@@ -264,7 +268,7 @@
         // deliberate reversal cannot drag the released motion back with it.
         pointer.target = pointer.renderPosition;
       }
-      pointer.target += delta * dragTravelSensitivity * motionScale();
+      pointer.target += delta * dragSensitivity * motionScale();
       pointer.moved += Math.abs(delta);
       if (Math.sign(delta) === direction) pointer.distance = addDistance(pointer.distance, delta, dragSensitivity);
       pointer.samples.push({time:at,x:sample.clientX});
@@ -304,7 +308,7 @@
       }
     }
     if (!tap && now - pointer.time <= 100 && pointer.distance > 0) {
-      const lag = (pointer.target - pointer.renderPosition) / motionScale() * (dragSensitivity / dragTravelSensitivity);
+      const lag = (pointer.target - pointer.renderPosition) / motionScale();
       if (Math.abs(lag) > .001 && Math.sign(lag) === direction) releaseVelocity = clampVelocity(releaseVelocity + lag * 8);
     }
     if (!tap && now - pointer.time <= 100) startCoast(pointer.distance, releaseVelocity, pointer.carriedVelocity);
