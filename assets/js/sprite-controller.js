@@ -132,7 +132,7 @@
       position = wrap(pointer.renderPosition);
       draw();
     } else {
-      if (key) velocity = direction * Math.min(3 + (now - held) / 125, activeWheelKeyMaxVelocity);
+      if (key) velocity = direction * Math.min(3.5 + (now - held) / 120, activeWheelKeyMaxVelocity);
       else {
         if (wheel && now - wheel.time >= 160) {
           const completedWheel = wheel; wheel = null; opposing = 0;
