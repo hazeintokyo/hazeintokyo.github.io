@@ -46,6 +46,7 @@
   const idleVelocity = 1.6;
   const maxVelocity = 14;
   const dragSensitivity = .044;
+  const dragTravelSensitivity = .088;
   const wheelSensitivity = .022;
   const dragSmoothing = 32;
   const tapDuration = 280;
@@ -263,7 +264,7 @@
         // deliberate reversal cannot drag the released motion back with it.
         pointer.target = pointer.renderPosition;
       }
-      pointer.target += delta * dragSensitivity * motionScale();
+      pointer.target += delta * dragTravelSensitivity * motionScale();
       pointer.moved += Math.abs(delta);
       if (Math.sign(delta) === direction) pointer.distance = addDistance(pointer.distance, delta, dragSensitivity);
       pointer.samples.push({time:at,x:sample.clientX});
@@ -303,7 +304,7 @@
       }
     }
     if (!tap && now - pointer.time <= 100 && pointer.distance > 0) {
-      const lag = (pointer.target - pointer.renderPosition) / motionScale();
+      const lag = (pointer.target - pointer.renderPosition) / motionScale() * (dragSensitivity / dragTravelSensitivity);
       if (Math.abs(lag) > .001 && Math.sign(lag) === direction) releaseVelocity = clampVelocity(releaseVelocity + lag * 8);
     }
     if (!tap && now - pointer.time <= 100) startCoast(pointer.distance, releaseVelocity, pointer.carriedVelocity);
