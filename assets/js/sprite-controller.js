@@ -45,9 +45,12 @@
   const motionScale = () => reducedMotion.matches ? .25 : 1;
   const idleVelocity = 1.6;
   const maxVelocity = 14;
+  const activeWheelKeyMaxVelocity = 20;
   const dragSensitivity = .022;
   const wheelSensitivity = .011;
   const precisionWheelSensitivity = .088;
+  const wheelSpeedSensitivity = .022;
+  const precisionWheelSpeedSensitivity = .132;
   const dragSmoothing = 32;
   const tapDuration = 280;
   const tapDistance = 12;
@@ -77,7 +80,7 @@
     coastExpiresAt = now + settlingTime * 1000;
     const chargedVelocity = Math.max(direction * releaseVelocity, direction * carriedVelocity,
       idleVelocity + coastMinimumBoost + coastDistance * coastDistanceSpeedBoost);
-    velocity = direction * Math.min(maxVelocity, chargedVelocity);
+    velocity = direction * Math.min(activeWheelKeyMaxVelocity, chargedVelocity);
   }
   const wrap = n => ((n % duration) + duration) % duration;
   const defaultVelocity = () => direction * idleVelocity;
@@ -129,14 +132,14 @@
       position = wrap(pointer.renderPosition);
       draw();
     } else {
-      if (key) velocity = direction * Math.min(1 + (now - held) / 250, maxVelocity);
+      if (key) velocity = direction * Math.min(3 + (now - held) / 125, activeWheelKeyMaxVelocity);
       else {
         if (wheel && now - wheel.time >= 160) {
           const completedWheel = wheel; wheel = null; opposing = 0;
           startCoast(completedWheel.distance, velocity, completedWheel.carriedVelocity);
         }
         const target = wheel ? direction * Math.max(idleVelocity, wheel.speed, direction * wheel.carriedVelocity) : defaultVelocity();
-        const decay = wheel ? wheel.precision ? 36 : 18 : momentumDecay || 7;
+        const decay = wheel ? wheel.precision ? 48 : 24 : momentumDecay || 7;
         velocity += (target - velocity) * (1 - Math.exp(-decay * dt));
       }
       position = wrap(position + (velocity + tapMotion) * dt * motionScale());
@@ -226,8 +229,9 @@
     if (Math.sign(delta) === direction) {
       const sensitivity = wheel.precision ? precisionWheelSensitivity : wheelSensitivity;
       wheel.distance = addDistance(wheel.distance, delta, sensitivity);
-      const speed = Math.min(maxVelocity, Math.abs(delta) * sensitivity / elapsed);
-      wheel.speed += (speed - wheel.speed) * (wheel.precision ? .9 : .5);
+      const speedSensitivity = wheel.precision ? precisionWheelSpeedSensitivity : wheelSpeedSensitivity;
+      const speed = Math.min(activeWheelKeyMaxVelocity, Math.abs(delta) * speedSensitivity / elapsed);
+      wheel.speed += (speed - wheel.speed) * (wheel.precision ? .95 : .7);
     }
     wake();
   }, {passive:false});
@@ -327,7 +331,7 @@
     wheel = null; opposing = 0; velocity = 0; tapMotion = 0; momentumDecay = 0; coastDistance = 0; coastExpiresAt = 0;
     key = e.key; direction = key === 'ArrowRight' ? 1 : -1;
     saveDirection();
-    held = performance.now(); position = wrap(position + direction/asset.fps * motionScale()); savePosition(true); draw(); wake();
+    held = performance.now(); position = wrap(position + direction*2/asset.fps * motionScale()); savePosition(true); draw(); wake();
   });
   window.addEventListener('keyup', e => { if (e.key === key) key = null; });
   window.addEventListener('blur', () => { suspended = true; stop(); });
