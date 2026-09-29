@@ -45,8 +45,8 @@
   const motionScale = () => reducedMotion.matches ? .25 : 1;
   const idleVelocity = 1.6;
   const maxVelocity = 14;
-  const dragSensitivity = .022;
-  const wheelSensitivity = .011;
+  const dragSensitivity = .044;
+  const wheelSensitivity = .022;
   const dragSmoothing = 32;
   const tapDuration = 280;
   const tapDistance = 12;
