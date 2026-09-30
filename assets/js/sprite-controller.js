@@ -8,6 +8,7 @@
   const idleVelocity = 1.6;
   const dragSensitivity = .022;
   const wheelSensitivity = .011;
+  const dragDirectionThreshold = 3;
   const assets = {
     phone: {url:'assets/media/haze-sheet-480.webp', size:480},
     medium: {url:'assets/media/haze-sheet-600.webp', size:600},
@@ -145,7 +146,7 @@
       const bounds = gesture.getBoundingClientRect();
       if (event.clientX < bounds.left || event.clientX >= bounds.right) return;
     }
-    pointer = {id:event.pointerId, x:event.clientX};
+    pointer = {id:event.pointerId, x:event.clientX, opposingDistance:0};
     root.setPointerCapture(event.pointerId);
   });
 
@@ -153,6 +154,17 @@
     if (!pointer || pointer.id !== event.pointerId) return;
     const delta = event.clientX - pointer.x;
     pointer.x = event.clientX;
+    if (!delta) return;
+    const dragDirection = Math.sign(delta);
+    if (dragDirection === direction) {
+      pointer.opposingDistance = 0;
+    } else {
+      pointer.opposingDistance += Math.abs(delta);
+      if (pointer.opposingDistance >= dragDirectionThreshold) {
+        direction = dragDirection;
+        pointer.opposingDistance = 0;
+      }
+    }
     position = wrap(position + delta * dragSensitivity);
     draw();
   });
