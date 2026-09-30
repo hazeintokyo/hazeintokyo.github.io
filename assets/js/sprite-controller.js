@@ -20,7 +20,7 @@
   let position = 0, velocity = 0, tapMotion = 0, last = -1, raf = 0, previous = 0, key = null, held = 0, pointer = null;
   const directionStorageKey = 'haze-animation-direction';
   const positionStorageKey = 'haze-animation-position';
-  let direction = -1, opposing = 0, wheel = null, momentumDecay = 0, coastDistance = 0, coastExpiresAt = 0, suspended = document.hidden;
+  let direction = -1, opposing = 0, wheel = null, momentumDecay = 0, coastDistance = 0, coastExpiresAt = 0;
   try {
     const savedDirection = Number(localStorage.getItem(directionStorageKey));
     if (savedDirection === -1 || savedDirection === 1) direction = savedDirection;
@@ -46,8 +46,8 @@
   const idleVelocity = 1.6;
   const maxVelocity = 14;
   const activeWheelKeyMaxVelocity = 20;
-  const dragSensitivity = .022;
-  const wheelSensitivity = .011;
+  const dragSensitivity = .044;
+  const wheelSensitivity = .022;
   const precisionWheelSensitivity = .088;
   const wheelSpeedSensitivity = .022;
   const precisionWheelSpeedSensitivity = .132;
@@ -125,7 +125,7 @@
   function tick(now) {
     raf = 0;
     const dt = Math.min((now - previous) / 1000, .05); previous = now;
-    if (!active || suspended || document.hidden) return;
+    if (!active) return;
     expireCoast(now);
     if (pointer) {
       pointer.renderPosition += (pointer.target - pointer.renderPosition) * (1 - Math.exp(-dragSmoothing * dt));
@@ -150,12 +150,12 @@
     // Keep advancing while motion is enabled. The previous condition stopped
     // the loop once velocity reached the idle target, so idle animation only
     // rendered one frame instead of continuing through the sprite sheet.
-    if (active && !document.hidden) {
+    if (active) {
       raf = requestAnimationFrame(tick);
     }
   }
   function wake() {
-    if (!active || suspended || document.hidden || raf) return;
+    if (!active || raf) return;
     previous = performance.now(); raf = requestAnimationFrame(tick);
   }
   async function loadPoster() {
@@ -205,7 +205,7 @@
     } finally { if (generation === loadGeneration) loadingForTier = null; }
   }
   root.addEventListener('wheel', e => {
-    if (!active || suspended || e.ctrlKey) return;
+    if (!active || e.ctrlKey) return;
     if (e.cancelable) e.preventDefault();
     if (pointer || key || (!e.deltaX && !e.deltaY)) return;
     const now = performance.now();
@@ -236,7 +236,7 @@
     wake();
   }, {passive:false});
   root.addEventListener('pointerdown', e => {
-    if (!active || suspended || pointer || !e.isPrimary || e.button !== 0) return;
+    if (!active || pointer || !e.isPrimary || e.button !== 0) return;
     // Edge-origin touch gestures belong to the browser, even if they move inward.
     if (phone.matches && e.pointerType !== 'mouse') {
       const bounds = gesture.getBoundingClientRect();
@@ -326,7 +326,7 @@
   root.addEventListener('pointercancel', cancelPointer);
   root.addEventListener('lostpointercapture', cancelPointer);
   window.addEventListener('keydown', e => {
-    if (!active || suspended || !['ArrowLeft','ArrowRight'].includes(e.key)) return;
+    if (!active || !['ArrowLeft','ArrowRight'].includes(e.key)) return;
     e.preventDefault(); if (pointer || key === e.key) return;
     wheel = null; opposing = 0; velocity = 0; tapMotion = 0; momentumDecay = 0; coastDistance = 0; coastExpiresAt = 0;
     key = e.key; direction = key === 'ArrowRight' ? 1 : -1;
@@ -334,12 +334,9 @@
     held = performance.now(); position = wrap(position + direction*2/asset.fps * motionScale()); savePosition(true); draw(); wake();
   });
   window.addEventListener('keyup', e => { if (e.key === key) key = null; });
-  window.addEventListener('blur', () => { suspended = true; stop(); });
-  window.addEventListener('focus', () => { suspended = document.hidden; wake(); });
-  document.addEventListener('visibilitychange', () => {
-    suspended = document.hidden;
-    if (suspended) stop(); else wake();
-  });
+  window.addEventListener('blur', () => savePosition(true));
+  window.addEventListener('focus', wake);
+  document.addEventListener('visibilitychange', () => { savePosition(true); wake(); });
   window.addEventListener('pagehide', () => savePosition(true));
   window.addEventListener('resize', load);
   for (const query of [phone, largeScreen]) {
