@@ -37,6 +37,28 @@
   const status = document.querySelector('[data-status]');
   const ctx = canvas.getContext('2d');
   const duration = frameCount / fps;
+  const directionStorageKey = 'haze-spin-direction';
+  function readDirection() {
+    try {
+      const stored = window.localStorage?.getItem(directionStorageKey);
+      if (stored === '1') return 1;
+      if (stored === '-1') return -1;
+    } catch (_) {
+      /* Keep the default direction when browser storage is unavailable. */
+    }
+    return -1;
+  }
+
+  function persistDirection(value) {
+    try {
+      window.localStorage?.setItem(directionStorageKey, String(value));
+    } catch (_) {
+      /* Animation should keep working when browser storage is unavailable. */
+    }
+  }
+
+  let direction = readDirection();
+  persistDirection(direction);
   let image = null;
   let frameSize = canvas.width;
   let ready = false;
@@ -44,8 +66,8 @@
   let loadingForTier = null;
   let loadedForTier = null;
   let loadGeneration = 0;
-  let position = 0;
-  let direction = -1;
+  let position = direction > 0 ? 0 : (frameCount - 1) / fps;
+  let posterStarted = false;
   let last = -1;
   let previous = performance.now();
   let pointer = null;
@@ -58,6 +80,13 @@
   let raf = 0;
 
   const wrap = value => ((value % duration) + duration) % duration;
+
+  function setDirection(value) {
+    const next = value < 0 ? -1 : 1;
+    if (next === direction) return;
+    direction = next;
+    persistDirection(direction);
+  }
 
   function draw(force = false) {
     if (!ready || !image) return;
@@ -80,9 +109,21 @@
   }
 
   function wake() {
-    if (!active || raf) return;
+    if (!active || raf || document.hidden) return;
     previous = performance.now();
     raf = requestAnimationFrame(tick);
+  }
+
+  function pause() {
+    heldKey = null;
+    if (!raf) return;
+    cancelAnimationFrame(raf);
+    raf = 0;
+  }
+
+  function resume() {
+    draw(true);
+    wake();
   }
 
   function tick(now) {
@@ -120,7 +161,10 @@
     loadingForTier = requested.size;
     if (!ready) {
       status.textContent = 'Loading animation…';
-      loadPoster();
+      if (!posterStarted) {
+        posterStarted = true;
+        loadPoster();
+      }
     }
     try {
       for (const candidate of tierCandidates(requested)) {
@@ -246,7 +290,7 @@
       } else {
         pointer.opposingDistance += Math.abs(delta);
         if (pointer.opposingDistance >= dragDirectionThreshold) {
-          direction = dragDirection;
+          setDirection(dragDirection);
           pointer.opposingDistance = 0;
           pointer.distance = 0;
           pointer.carriedBoost = 0;
@@ -276,7 +320,7 @@
       if (tap) {
         const bounds = (phone.matches ? gesture : root)?.getBoundingClientRect?.() ||
           {left:0,right:window.innerWidth || innerWidth};
-        direction = current.startX < (bounds.left + bounds.right) / 2 ? -1 : 1;
+        setDirection(current.startX < (bounds.left + bounds.right) / 2 ? -1 : 1);
         clearReleaseMotion();
         tapBoost = current.type === 'mouse' ? mouseClickImpulse : tapImpulse;
         tapBoostDecay = current.type === 'mouse' ? mouseClickDecay : tapDecay;
@@ -304,7 +348,7 @@
     if (!delta) return;
     clearReleaseMotion();
     heldKey = null;
-    direction = Math.sign(delta);
+    setDirection(Math.sign(delta));
     const trackpadLike = event.deltaMode === 0 &&
       Math.max(Math.abs(event.deltaX), Math.abs(event.deltaY)) < 80;
     position = wrap(position + delta * (trackpadLike ? trackpadWheelSensitivity : wheelSensitivity));
@@ -316,7 +360,7 @@
     event.preventDefault();
     if (pointer || heldKey === event.key) return;
     clearReleaseMotion();
-    direction = event.key === 'ArrowRight' ? 1 : -1;
+    setDirection(event.key === 'ArrowRight' ? 1 : -1);
     heldKey = event.key;
     heldKeySince = performance.now();
     wake();
@@ -339,11 +383,12 @@
     draw(true);
   });
 
-  window.addEventListener('blur', () => { heldKey = null; wake(); });
-  window.addEventListener('focus', wake);
+  window.addEventListener('blur', pause);
+  window.addEventListener('focus', resume);
+  window.addEventListener('pageshow', resume);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) heldKey = null;
-    wake();
+    if (document.hidden) pause();
+    else resume();
   });
 
   for (const query of [phone, largeScreen]) {

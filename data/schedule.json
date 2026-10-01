@@ -16,33 +16,5 @@
     "endsAt": "2026-10-31T03:00:00+09:00",
     "venue": "Debris Music Bar",
     "location": "Daikanyama"
-  },
-  {
-    "id": "2026-11-06-meimei",
-    "startsAt": "2026-11-06T00:00:00+09:00",
-    "time": "TBA",
-    "venue": "Meimei",
-    "location": "Shimokitazawa"
-  },
-  {
-    "id": "2026-11-13-livehaus",
-    "startsAt": "2026-11-13T00:00:00+09:00",
-    "time": "TBA",
-    "venue": "Livehaus",
-    "location": "Shimokitazawa"
-  },
-  {
-    "id": "2026-12-12-forestlimit",
-    "startsAt": "2026-12-12T00:00:00+09:00",
-    "time": "TBA",
-    "venue": "FORESTLIMIT",
-    "location": "Hatagaya"
-  },
-  {
-    "id": "2026-12-26-forestlimit",
-    "startsAt": "2026-12-26T00:00:00+09:00",
-    "time": "TBA",
-    "venue": "FORESTLIMIT",
-    "location": "Hatagaya"
   }
 ]
